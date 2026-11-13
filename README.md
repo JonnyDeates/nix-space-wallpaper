@@ -5,6 +5,18 @@ shader is drawn by [shaderbg](https://github.com/Mr-Pine/shaderbg) on every moni
 shows a slowly drifting starfield and background sky, and every 30 minutes rolls a new scene: a
 black hole, a gas giant, a moonscape, a meteor shower, one of eight nebulae, and so on.
 
+| | | |
+|---|---|---|
+| ![Cosmic Cliffs](docs/screenshots/cliffs.jpg) | ![Black hole](docs/screenshots/hole.jpg) | ![Spiral galaxy](docs/screenshots/spiral.jpg) |
+| `cliffs` | `hole` | `spiral` |
+| ![Moonscape under a gas giant](docs/screenshots/moon.jpg) | ![Horsehead Nebula](docs/screenshots/horsehead.jpg) | ![Pillars of Creation](docs/screenshots/pillars.jpg) |
+| `moon` | `horsehead` | `pillars` |
+| ![Over a giant's rings](docs/screenshots/ringplane.jpg) | ![Quasar](docs/screenshots/quasar.jpg) | ![Low orbit](docs/screenshots/horizon.jpg) |
+| `ringplane` | `quasar` | `horizon` |
+
+Nine of the 36 scenes, as `space-wallpaper-preview` shows them on a 4K monitor. They all move:
+clouds drift, jets waver, discs turn, and the view pushes in slowly.
+
 It works on any compositor with the layer-shell protocol (Hyprland, Sway, river, ...). The optional
 pauser, which freezes it behind open windows, is Hyprland only.
 
