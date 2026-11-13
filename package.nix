@@ -1,7 +1,7 @@
 # The space wallpaper as one package: a patched shaderbg, the joined shader, and the scripts that run
 # it (launcher, preview, toggle, and the Hyprland pauser). The settings are package arguments, so
 # `.override { fps = 30; }` and the like work; the Home Manager module (module.nix) sets them from
-# its options.
+# its options. The shaders and patches are read from `source`, which defaults to this checkout.
 {
   lib,
   concatText,
@@ -26,64 +26,76 @@
   previewOutput ? "DP-1",
   # Include space-wallpaper-pauser (Hyprland only).
   withPauser ? true,
+  # The shaders and patches; this checkout by default. (Not called `src`: callPackage would fill
+  # that from pkgs.)
+  source ? lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions [
+      ./shaders
+      ./patches
+    ];
+  },
 }:
 
 let
+  version = "0.1.0";
+  src = source;
+
   # Upstream ignores the output scale, so on 2x monitors it renders at half resolution and gets upscaled.
   shaderbgPatched = shaderbg.overrideAttrs (old: {
     # Plus SHADERBG_EPOCH, so a scene swapped in by a new process carries on the same clock.
     patches = (old.patches or [ ]) ++ [
-      ./patches/shaderbg-hidpi.patch
-      ./patches/shaderbg-epoch.patch
+      "${src}/patches/shaderbg-hidpi.patch"
+      "${src}/patches/shaderbg-epoch.patch"
     ];
   });
 
   # GLSL needs definitions before use, so the parts are joined in dependency order.
   joined = concatText "space.frag" [
-    ./shaders/common.glsl
-    ./shaders/stars.glsl
-    ./shaders/skies/nebula.glsl
-    ./shaders/skies/milkyway.glsl
-    ./shaders/skies/deepfield.glsl
-    ./shaders/skies/cirrus.glsl
-    ./shaders/sky.glsl
-    ./shaders/bodies.glsl
-    ./shaders/events/solar-system.glsl
-    ./shaders/events/comet.glsl
-    ./shaders/events/black-hole.glsl
-    ./shaders/events/galaxy.glsl
-    ./shaders/events/pillars.glsl
-    ./shaders/events/ring-nebula.glsl
-    ./shaders/events/crab.glsl
-    ./shaders/events/bipolar.glsl
-    ./shaders/events/comet-closeup.glsl
-    ./shaders/events/binary.glsl
-    ./shaders/events/pulsar.glsl
-    ./shaders/events/supernova.glsl
-    ./shaders/events/star-surface.glsl
-    ./shaders/events/galaxy-collision.glsl
-    ./shaders/events/quasar.glsl
-    ./shaders/events/rogue.glsl
-    ./shaders/events/horizon.glsl
-    ./shaders/events/cluster.glsl
-    ./shaders/events/giant.glsl
-    ./shaders/events/planet.glsl
-    ./shaders/events/asteroid-field.glsl
-    ./shaders/events/moon.glsl
-    ./shaders/events/ringplane.glsl
-    ./shaders/events/nebulae/field.glsl
-    ./shaders/events/nebulae/cliffs.glsl
-    ./shaders/events/nebulae/orion.glsl
-    ./shaders/events/nebulae/lagoon.glsl
-    ./shaders/events/nebulae/rosette.glsl
-    ./shaders/events/nebulae/horsehead.glsl
-    ./shaders/events/nebulae/tarantula.glsl
-    ./shaders/events/nebulae/veil.glsl
-    ./shaders/events/nebulae/rho.glsl
-    ./shaders/events/nebulae/forge.glsl
-    ./shaders/events/shower.glsl
-    ./shaders/meteors.glsl
-    ./shaders/main.glsl
+    "${src}/shaders/common.glsl"
+    "${src}/shaders/stars.glsl"
+    "${src}/shaders/skies/nebula.glsl"
+    "${src}/shaders/skies/milkyway.glsl"
+    "${src}/shaders/skies/deepfield.glsl"
+    "${src}/shaders/skies/cirrus.glsl"
+    "${src}/shaders/sky.glsl"
+    "${src}/shaders/bodies.glsl"
+    "${src}/shaders/events/solar-system.glsl"
+    "${src}/shaders/events/comet.glsl"
+    "${src}/shaders/events/black-hole.glsl"
+    "${src}/shaders/events/galaxy.glsl"
+    "${src}/shaders/events/pillars.glsl"
+    "${src}/shaders/events/ring-nebula.glsl"
+    "${src}/shaders/events/crab.glsl"
+    "${src}/shaders/events/bipolar.glsl"
+    "${src}/shaders/events/comet-closeup.glsl"
+    "${src}/shaders/events/binary.glsl"
+    "${src}/shaders/events/pulsar.glsl"
+    "${src}/shaders/events/supernova.glsl"
+    "${src}/shaders/events/star-surface.glsl"
+    "${src}/shaders/events/galaxy-collision.glsl"
+    "${src}/shaders/events/quasar.glsl"
+    "${src}/shaders/events/rogue.glsl"
+    "${src}/shaders/events/horizon.glsl"
+    "${src}/shaders/events/cluster.glsl"
+    "${src}/shaders/events/giant.glsl"
+    "${src}/shaders/events/planet.glsl"
+    "${src}/shaders/events/asteroid-field.glsl"
+    "${src}/shaders/events/moon.glsl"
+    "${src}/shaders/events/ringplane.glsl"
+    "${src}/shaders/events/nebulae/field.glsl"
+    "${src}/shaders/events/nebulae/cliffs.glsl"
+    "${src}/shaders/events/nebulae/orion.glsl"
+    "${src}/shaders/events/nebulae/lagoon.glsl"
+    "${src}/shaders/events/nebulae/rosette.glsl"
+    "${src}/shaders/events/nebulae/horsehead.glsl"
+    "${src}/shaders/events/nebulae/tarantula.glsl"
+    "${src}/shaders/events/nebulae/veil.glsl"
+    "${src}/shaders/events/nebulae/rho.glsl"
+    "${src}/shaders/events/nebulae/forge.glsl"
+    "${src}/shaders/events/shower.glsl"
+    "${src}/shaders/meteors.glsl"
+    "${src}/shaders/main.glsl"
   ];
 
   # A GLSL float literal for a Nix number.
@@ -352,7 +364,8 @@ let
   '';
 in
 symlinkJoin {
-  name = "space-wallpaper";
+  pname = "space-wallpaper";
+  inherit version;
   paths = [
     launch
     preview
@@ -366,6 +379,7 @@ symlinkJoin {
     shaderbg = shaderbgPatched;
   };
   meta = {
+    homepage = "https://github.com/JonnyDeates/nix-space-wallpaper";
     description = "Animated space wallpaper for Wayland: a GLSL starfield with a new scene every half hour";
     license = lib.licenses.mit;
     platforms = lib.platforms.linux;
