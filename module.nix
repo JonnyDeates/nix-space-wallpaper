@@ -98,7 +98,8 @@ in
         Description = "Animated space wallpaper";
         PartOf = [ "graphical-session.target" ];
         After = [ "graphical-session.target" ];
-        Wants = map instance cfg.monitors ++ lib.optional cfg.pauser.enable "space-wallpaper-pauser.service";
+        Wants =
+          map instance cfg.monitors ++ lib.optional cfg.pauser.enable "space-wallpaper-pauser.service";
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
