@@ -1,26 +1,70 @@
 # Space wallpaper
 
-An animated space wallpaper for Hyprland. A GLSL shader is drawn by
-[shaderbg](https://github.com/Mr-Pine/shaderbg) on every monitor. Each monitor shows a slowly
-drifting starfield and nebula, and every 30 minutes rolls a new scene: a black hole, a gas giant, a
-moonscape, an orbital sunrise, and so on.
+An animated space wallpaper for Wayland, packaged as a Nix flake with a Home Manager module. A GLSL
+shader is drawn by [shaderbg](https://github.com/Mr-Pine/shaderbg) on every monitor. Each monitor
+shows a slowly drifting starfield and background sky, and every 30 minutes rolls a new scene: a
+black hole, a gas giant, a moonscape, a meteor shower, one of eight nebulae, and so on.
+
+It works on any compositor with the layer-shell protocol (Hyprland, Sway, river, ...). The optional
+pauser, which freezes it behind open windows, is Hyprland only.
+
+## Installing
+
+Add the flake as an input and import the Home Manager module:
+
+```nix
+# flake.nix
+inputs.space-wallpaper = {
+  url = "github:JonnyDeates/space-wallpaper";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+
+# In your Home Manager configuration (with `inputs` passed in):
+imports = [ inputs.space-wallpaper.homeManagerModules.default ];
+
+services.space-wallpaper = {
+  enable = true;
+  monitors = [ "DP-1" "DP-2" ];
+};
+```
+
+The package alone is `inputs.space-wallpaper.packages.<system>.default` (or
+`overlays.default`, which adds `pkgs.space-wallpaper`).
+
+### Options
+
+All under `services.space-wallpaper`:
+
+| Option | Default | |
+|---|---|---|
+| `enable` | `false` | Run the wallpaper (a `space-wallpaper.target` started with the graphical session) |
+| `monitors` | (required) | Outputs to draw on, as `hyprctl monitors` or `wlr-randr` name them |
+| `fps` | `20` | Frames per second; everything moves slowly, so more mostly costs GPU |
+| `scenePeriod` | `1800` | Seconds each scene lasts |
+| `plainSkyShare` | `0.25` | Share of scene slots that show just the plain sky |
+| `seed` | `null` | A fixed seed for the scenes, or `null` for a random one each launch |
+| `preview.output` | first monitor | Where `space-wallpaper-preview` draws when no output is given |
+| `pauser.enable` | Hyprland enabled | Freeze a monitor's wallpaper while a window is open on it |
+| `package` | this flake's | The package; the options above are applied with `.override` |
 
 ## Using it
 
 | | |
 |---|---|
-| Toggle on/off | `Super+Alt+W` (`space-wallpaper-toggle`) |
+| Toggle on/off | `space-wallpaper-toggle` (bind it to a key) |
 | Preview a scene | `space-wallpaper-preview <scene> [output] [seconds] [seed]` |
 | Logs (seed, scenes rolled) | `journalctl --user -u 'space-wallpaper@*'` |
 | Restart | `systemctl --user restart 'space-wallpaper@*'` |
 
-**Preview.** `space-wallpaper-preview giant` shows the gas giant on DP-2 for 20 s. Run it with no
+**Preview.** `space-wallpaper-preview giant` shows the gas giant for 20 s, on `preview.output`. Run it with no
 arguments to list the scene names. A sky name (`nebula`, `milkyway`, `deepfield`, `cirrus`,
 `void`) shows that background on its own. It prints the seed it used, so you can pass that seed
 back to get the same scene (and sky) again.
 
 **Seeds.** Each launch picks a random seed (0–99999) and logs it. The seed decides which
 scenes roll and how each one looks; the sky goes by the date instead (see below). To replay a launch you liked:
+
+Set `seed` in the module to keep one, or try it first without rebuilding:
 
 ```sh
 systemctl --user set-environment SPACE_WALLPAPER_SEED=1234
@@ -36,13 +80,13 @@ isn't frozen, so scenes still change on time behind your windows.
 
 ## How it runs
 
-`space-wallpaper.nix` concatenates the shader parts below into one `space.frag`. A
+`package.nix` concatenates the shader parts below into one `space.frag`. A
 `space-wallpaper@<output>` systemd user unit then runs `space-wallpaper-launch <output>`, which works
 like this:
 
 1. **Seeding.** It picks the seed and writes a copy of the shader with the seed in it.
 2. **Scheduling.** The scene list and odds come straight from the shader, read at build time into
-   an event table (`eventTable` in `space-wallpaper.nix`): each `*_CHANCE` paired with its `EV_*` in
+   an event table (`eventTable` in `package.nix`): each `*_CHANCE` paired with its `EV_*` in
    `pickEvent`, plus `PLAIN_SKY_SHARE`. A scene's name is its `EV_` name in lower case; the preview
    looks names up in the same table. The launcher rolls each 30-minute slot's scene from the seed.
 3. **One shader per scene.** It runs each scene as its own `shaderbg` process, from a copy of the
@@ -51,16 +95,25 @@ like this:
 4. **The hand-over.** The last `SWAP_GAP` (30) seconds of every slot are plain sky. A moment into
    that gap the launcher starts the next scene's process, waits for it to compile, then stops the old
    one. All of a monitor's processes share one clock (`SHADERBG_EPOCH`, from
-   `shaderbg-epoch.patch`), and outside its own slot each process draws just the sky
+   `patches/shaderbg-epoch.patch`), and outside its own slot each process draws just the sky
    (`SHOW_FROM`/`SHOW_UNTIL`). So during the overlap both draw the identical picture, and the swap
    can't be seen.
 
-`shaderbg-hidpi.patch` makes shaderbg render at the monitor's real resolution on scaled outputs. It
-renders at 20 fps; everything moves slowly enough that more frames only cost GPU.
+`patches/shaderbg-hidpi.patch` makes shaderbg render at the monitor's real resolution on scaled
+outputs. It renders at 20 fps by default; everything moves slowly enough that more frames only cost
+GPU.
 
 ## Files
 
-Joined into `space.frag` in this order (GLSL needs everything defined before it's used):
+| File | What's in it |
+|---|---|
+| `flake.nix` | Outputs: `packages`, `overlays.default`, `homeManagerModules.default`, `checks` |
+| `package.nix` | The package: patched shaderbg, the joined shader, the scripts |
+| `module.nix` | The Home Manager module: options and systemd user units |
+| `patches/` | The two shaderbg patches (hi-DPI rendering, shared clock) |
+
+The shader parts in `shaders/`, joined into `space.frag` in this order (GLSL needs everything
+defined before it's used):
 
 | File | What's in it |
 |---|---|
@@ -79,12 +132,12 @@ Joined into `space.frag` in this order (GLSL needs everything defined before it'
 
 ```mermaid
 flowchart TB
-    subgraph run["Running it (space-wallpaper.nix)"]
+    subgraph run["Running it (module.nix, package.nix)"]
         unit["systemd: space-wallpaper@#lt;output#gt;"] --> launch["space-wallpaper-launch<br/>seed · rolls each 30-min slot"]
         launch -- "FORCE_EVENT, SHOW_FROM/UNTIL,<br/>SHADERBG_EPOCH" --> procs["one shaderbg per scene<br/>(old and next overlap in the gap)"]
         preview["space-wallpaper-preview"] -- "FORCE_EVENT or FORCE_SKY" --> procs
         pauser["space-wallpaper-pauser"] -. "SIGSTOP shaderbg when a window is open" .-> procs
-        toggle["Super+Alt+W: toggle"] -. "start / stop" .-> unit
+        toggle["space-wallpaper-toggle"] -. "start / stop" .-> unit
     end
 
     subgraph frag["space.frag: shaders/ joined top to bottom"]
@@ -188,12 +241,12 @@ replace the background can come out below zero.
 
 ## Changing things
 
-- **Odds:** edit the `*_CHANCE` weights or `PLAIN_SKY_SHARE` in `common.glsl`. The launcher reads
-  them from there.
-- **Scene length:** `EVENT_PERIOD` in `common.glsl`. Slow one-way motions (drifting positions, zooms,
+- **Odds:** edit the `*_CHANCE` weights in `common.glsl`; the launcher reads them from there. The
+  plain-sky share is the `plainSkyShare` option.
+- **Scene length:** the `scenePeriod` option (it sets `EVENT_PERIOD` in `common.glsl`). Slow one-way motions (drifting positions, zooms,
   a turning view) go through `eventDrift(lt)`, which spreads the same motion over the scene however
   long it is. Wrap new ones in it too, or they'll wander off screen in long scenes.
-- **Frame rate:** `--fps` in `space-wallpaper.nix`, in both the launcher and the preview.
+- **Frame rate:** the `fps` option.
 
 ### Adding a scene
 
@@ -207,7 +260,7 @@ replace the background can come out below zero.
    screen).
 4. If the scene brings its own backdrop or fills the screen, add it to `replacesSky` in
    `common.glsl`, so the background sky's clouds fade out under it.
-5. In `space-wallpaper.nix`, add the file to the shader parts (after anything it calls). The
+5. In `package.nix`, add the file to the shader parts (after anything it calls). The
    launcher and the preview pick the scene up by themselves, as `<name>` in lower case.
 6. Check its cost and its compile time (see Testing) before choosing a weight.
 
@@ -238,18 +291,21 @@ name in the preview's `skies`.
 Always run test instances on the `overlay` layer, so they show above the live wallpaper without
 touching it.
 
+`nix flake check` compiles the whole shader with `glslangValidator`, so GLSL mistakes fail the
+build instead of leaving a blank wallpaper.
+
 ```sh
-# The shader the current build would use:
-gen=$(nix build --no-link --print-out-paths .#nixosConfigurations.default.config.home-manager.users.jonkoi.home.activationPackage)
-launch=$(grep -oP '^ExecStart=\K\S+' $gen/home-files/.config/systemd/user/space-wallpaper@.service)
-frag=$(grep -oP '/nix/store/\S+space.frag' $launch)
+# The shader this checkout builds, and the patched shaderbg:
+out=$(nix build --no-link --print-out-paths .#default)
+frag=$out/share/space-wallpaper/space.frag
+shaderbg=$(nix build --no-link --print-out-paths .#default.shaderbg)/bin/shaderbg
 
 # Force a scene (here the moon) and a seed; skip the fade-in:
 sed -e 's/const int FORCE_EVENT = -1;/const int FORCE_EVENT = 26;/' \
     -e 's/const float EVENT_FADE = 20.0;/const float EVENT_FADE = 0.001;/' \
     -e 's|const float RANDOM_SEED = 0.0;|const float RANDOM_SEED = 61.0;|' $frag > /tmp/t.frag
-shaderbg --fps 20 --layer overlay DP-2 /tmp/t.frag
-# Screenshot that monitor only: grim -o DP-2 out.png
+$shaderbg --fps 20 --layer overlay DP-1 /tmp/t.frag
+# Screenshot that monitor only: grim -o DP-1 out.png
 ```
 
 - **Later in the scene:** replace `float t = iTime;` with `float t = iTime + 900.0;`.
