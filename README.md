@@ -15,7 +15,7 @@ Add the flake as an input and import the Home Manager module:
 ```nix
 # flake.nix
 inputs.space-wallpaper = {
-  url = "github:JonnyDeates/space-wallpaper";
+  url = "github:JonnyDeates/nix-space-wallpaper";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 
