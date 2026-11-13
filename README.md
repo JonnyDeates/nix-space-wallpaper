@@ -43,9 +43,35 @@ services.space-wallpaper = {
 The package alone is `inputs.space-wallpaper.packages.<system>.default` (or
 `overlays.default`, which adds `pkgs.space-wallpaper`).
 
+### Without Home Manager
+
+**NixOS:** the flake also has a NixOS module with the same options (below):
+
+```nix
+imports = [ inputs.space-wallpaper.nixosModules.default ];
+services.space-wallpaper = {
+  enable = true;
+  monitors = [ "DP-1" "DP-2" ];
+};
+```
+
+**Any distro with Nix:** the package ships its systemd user units in `lib/systemd/user`. Link them
+in and enable one instance per monitor; that also enables `space-wallpaper.target`, which starts
+with your graphical session:
+
+```sh
+nix profile install github:JonnyDeates/nix-space-wallpaper
+ln -s ~/.nix-profile/lib/systemd/user/space-wallpaper* ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now space-wallpaper@DP-1.service space-wallpaper@DP-2.service
+```
+
+Without systemd, `space-wallpaper-launch <output>` also runs on its own (from your compositor's
+autostart, say), but then nothing restarts it, and the pauser and toggle need the units.
+
 ### Options
 
-All under `services.space-wallpaper`:
+All under `services.space-wallpaper`, in both modules:
 
 | Option | Default | |
 |---|---|---|
@@ -56,7 +82,7 @@ All under `services.space-wallpaper`:
 | `plainSkyShare` | `0.25` | Share of scene slots that show just the plain sky |
 | `seed` | `null` | A fixed seed for the scenes, or `null` for a random one each launch |
 | `preview.output` | first monitor | Where `space-wallpaper-preview` draws when no output is given |
-| `pauser.enable` | Hyprland enabled | Freeze a monitor's wallpaper while a window is open on it |
+| `pauser.enable` | Hyprland enabled (`wayland.windowManager.hyprland` / `programs.hyprland`) | Freeze a monitor's wallpaper while a window is open on it |
 | `package` | this flake's | The package; the options above are applied with `.override` |
 
 ## Using it
@@ -119,9 +145,10 @@ GPU.
 
 | File | What's in it |
 |---|---|
-| `flake.nix` | Outputs: `packages`, `overlays.default`, `homeManagerModules.default`, `checks` |
-| `package.nix` | The package: patched shaderbg, the joined shader, the scripts |
+| `flake.nix` | Outputs: `packages`, `overlays.default`, `homeManagerModules.default`, `nixosModules.default`, `checks` |
+| `package.nix` | The package: patched shaderbg, the joined shader, the scripts, systemd user units |
 | `module.nix` | The Home Manager module: options and systemd user units |
+| `nixos-module.nix` | The NixOS module: the same options, using the package's units |
 | `patches/` | The two shaderbg patches (hi-DPI rendering, shared clock) |
 
 The shader parts in `shaders/`, joined into `space.frag` in this order (GLSL needs everything

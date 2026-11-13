@@ -27,6 +27,11 @@
         default = space-wallpaper;
       };
 
+      nixosModules = rec {
+        space-wallpaper = ./nixos-module.nix;
+        default = space-wallpaper;
+      };
+
       checks = forAllSystems (pkgs: {
         # The whole shader compiles, wrapped the way shaderbg wraps it (its prologue and main()).
         # Catches GLSL mistakes at build time instead of as a blank wallpaper.

@@ -38,7 +38,7 @@
 }:
 
 let
-  version = "0.1.0";
+  version = "0.1.1";
   src = source;
 
   # Upstream ignores the output scale, so on 2x monitors it renders at half resolution and gets upscaled.
@@ -356,6 +356,56 @@ let
     fi
   '';
 
+  # systemd user units, so it runs without Home Manager too: enable one instance per monitor
+  # (`systemctl --user enable --now space-wallpaper@DP-1`) and they all start with the graphical
+  # session, under space-wallpaper.target (what space-wallpaper-toggle starts and stops). The Home
+  # Manager module writes its own copies of these, with its options applied.
+  restart = ''
+    Restart=always
+    RestartSec=2
+  '';
+  units = runCommand "space-wallpaper-units" { } ''
+    mkdir -p $out/lib/systemd/user
+    cd $out/lib/systemd/user
+    cat > space-wallpaper.target <<'EOF'
+    [Unit]
+    Description=Animated space wallpaper
+    PartOf=graphical-session.target
+    After=graphical-session.target
+    ${lib.optionalString withPauser "Wants=space-wallpaper-pauser.service"}
+
+    [Install]
+    WantedBy=graphical-session.target
+    EOF
+    cat > space-wallpaper@.service <<'EOF'
+    [Unit]
+    Description=Animated space wallpaper on %i
+    PartOf=space-wallpaper.target
+    After=graphical-session.target
+    StartLimitIntervalSec=0
+
+    [Service]
+    ExecStart=${launch}/bin/space-wallpaper-launch %i
+    ${restart}
+    [Install]
+    WantedBy=space-wallpaper.target
+    Also=space-wallpaper.target
+    EOF
+    ${lib.optionalString withPauser ''
+      cat > space-wallpaper-pauser.service <<'EOF'
+      [Unit]
+      Description=Pause the space wallpaper behind open windows
+      PartOf=space-wallpaper.target
+      After=graphical-session.target
+      StartLimitIntervalSec=0
+
+      [Service]
+      ExecStart=${pauser}/bin/space-wallpaper-pauser
+      ${restart}
+      EOF
+    ''}
+  '';
+
   # The joined shader and event table, installed for testing and for anyone building on them.
   data = runCommand "space-wallpaper-data" { } ''
     mkdir -p $out/share/space-wallpaper
@@ -366,11 +416,14 @@ in
 symlinkJoin {
   pname = "space-wallpaper";
   inherit version;
+  strictDeps = true;
+  __structuredAttrs = true;
   paths = [
     launch
     preview
     toggle
     data
+    units
   ]
   ++ lib.optional withPauser pauser;
   passthru = {
