@@ -38,7 +38,7 @@
 }:
 
 let
-  version = "0.1.1";
+  version = "0.1.2";
   src = source;
 
   # Upstream ignores the output scale, so on 2x monitors it renders at half resolution and gets upscaled.

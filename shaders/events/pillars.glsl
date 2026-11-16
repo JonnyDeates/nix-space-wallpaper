@@ -35,8 +35,15 @@ vec4 pillarNebula(vec2 uv, float seed, float slot, float t) {
     float dens = 0.0;   // how much dust the line of sight crosses
     float nx = 0.0;     // across-the-pillar position (-1..1), for shading it as a rounded column
     float height = 0.0; // how far up its pillar this pixel is
+    // Where pillars overlap, the shading blends between them, weighted toward the thicker one
+    // (taking just the thickest would leave a hard seam where they swap).
+    float wSum = 0.0;
     float frontGlow = 0.0;
     int count = 2 + int(hash12(vec2(slot, seed + 167.0)) * 1.99);
+    // A narrow (portrait) screen only has room for two.
+    if (ext.x < 0.75) {
+        count = 2;
+    }
     float y0 = -ext.y - 0.1;
     for (int i = 0; i < 3; i++) {
         if (i >= count) {
@@ -56,17 +63,20 @@ vec4 pillarNebula(vec2 uv, float seed, float slot, float t) {
         float inside = smoothstep(-0.01, 0.03, edgeD) * smoothstep(1.08, 1.0, s);
         // Thickness through a rounded column: thin at the edges, thick in the middle.
         float th = inside * sqrt(clamp(edgeD / max(width, 0.01), 0.0, 1.0));
-        if (th > dens) {
-            dens = th;
-            nx = clamp((uv.x - axis) / max(width, 0.01), -1.0, 1.0);
-            height = s;
-        }
+        dens = max(dens, th);
+        float w = th * th * th * th;
+        wSum += w;
+        nx += w * clamp((uv.x - axis) / max(width, 0.01), -1.0, 1.0);
+        height += w * s;
         // Ionisation front: a thin glow just outside the edge, strongest at the head and on the
         // side facing the light.
         float lit = smoothstep(0.3, 1.0, s) * smoothstep(1.12, 1.0, s);
         float facing = 0.5 + 0.5 * sign(uv.x - axis) * dirSrc.x + 0.4;
         frontGlow += exp(-abs(edgeD + 0.004) / 0.008) * lit * facing * (0.4 + 0.6 * erosion);
     }
+
+    nx /= max(wSum, 1e-6);
+    height /= max(wSum, 1e-6);
 
     // Shading the column: a normal from across-pillar position, tipped up at the head.
     // Lumpy relief: the slope of the dust's clumps tilts the surface, so knots and folds catch
