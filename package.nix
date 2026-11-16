@@ -38,7 +38,7 @@
 }:
 
 let
-  version = "0.1.2";
+  version = "0.1.3";
   src = source;
 
   # Upstream ignores the output scale, so on 2x monitors it renders at half resolution and gets upscaled.
@@ -416,8 +416,6 @@ in
 symlinkJoin {
   pname = "space-wallpaper";
   inherit version;
-  strictDeps = true;
-  __structuredAttrs = true;
   paths = [
     launch
     preview
@@ -426,6 +424,11 @@ symlinkJoin {
     units
   ]
   ++ lib.optional withPauser pauser;
+  # Fail the build rather than ship an empty package if the join ever comes up empty.
+  postBuild = ''
+    test -x $out/bin/space-wallpaper-launch
+    test -f $out/share/space-wallpaper/space.frag
+  '';
   passthru = {
     shader = spaceShader;
     inherit eventTable;
